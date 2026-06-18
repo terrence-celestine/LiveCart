@@ -3,14 +3,15 @@ import { io } from 'socket.io-client'
 import type { Product, CartItem } from './types'
 import { products } from './data/products'
 import ProductCard from './components/ProductCard'
+import CartPanel from './components/CartPanel'
 
 const socket = io('http://localhost:3001')
-
 const CATEGORIES = ['All', 'Produce', 'Dairy', 'Meat', 'Bakery', 'Pantry', 'Drinks']
 
 function App() {
   const [connected, setConnected] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [cartOpen, setCartOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState('All')
 
   useEffect(() => {
@@ -29,6 +30,23 @@ function App() {
       }
       return [...prev, { product, quantity: 1, addedBy: 'You' }]
     })
+  }
+
+  function handleIncrement(id: string) {
+    setCart(prev => prev.map(i =>
+      i.product.id === id ? { ...i, quantity: i.quantity + 1 } : i
+    ))
+  }
+
+  function handleDecrement(id: string) {
+    setCart(prev => prev
+      .map(i => i.product.id === id ? { ...i, quantity: i.quantity - 1 } : i)
+      .filter(i => i.quantity > 0)
+    )
+  }
+
+  function handleRemove(id: string) {
+    setCart(prev => prev.filter(i => i.product.id !== id))
   }
 
   const filtered = activeCategory === 'All'
@@ -53,7 +71,10 @@ function App() {
             }`}>
               {connected ? '⚡ Live' : '⏳ Connecting'}
             </span>
-            <button className="relative bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">
+            <button
+              onClick={() => setCartOpen(true)}
+              className="relative bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold"
+            >
               Cart
               {totalItems > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
@@ -65,7 +86,7 @@ function App() {
         </div>
 
         {/* Category tabs */}
-        <div className="max-w-5xl mx-auto px-4 flex gap-1 overflow-x-auto pb-0 scrollbar-hide">
+        <div className="max-w-5xl mx-auto px-4 flex gap-1 overflow-x-auto pb-0">
           {CATEGORIES.map(cat => (
             <button
               key={cat}
@@ -96,6 +117,16 @@ function App() {
           ))}
         </div>
       </main>
+
+      {/* Cart panel */}
+      <CartPanel
+        isOpen={cartOpen}
+        onClose={() => setCartOpen(false)}
+        cart={cart}
+        onIncrement={handleIncrement}
+        onDecrement={handleDecrement}
+        onRemove={handleRemove}
+      />
 
     </div>
   )

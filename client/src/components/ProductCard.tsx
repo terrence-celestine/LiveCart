@@ -42,7 +42,7 @@ export default function ProductCard({ product, cartItems, onAdd }: Props) {
       {/* Info */}
       <div className="p-3">
         <p className="text-[11px] text-gray-400 mb-0.5">{product.category}</p>
-        <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 min-h-[2.5rem]">
+        <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 min-h-10">
           {product.name}
         </p>
 
