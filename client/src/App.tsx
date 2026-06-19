@@ -4,12 +4,21 @@ import type { Product, CartItem } from './types'
 import { products } from './data/products'
 import ProductCard from './components/ProductCard'
 import CartPanel from './components/CartPanel'
+import Lobby from './components/Lobby'
 
 const socket = io('http://localhost:3001')
 const CATEGORIES = ['All', 'Produce', 'Dairy', 'Meat', 'Bakery', 'Pantry', 'Drinks']
 
+interface SessionState {
+  sessionId: string
+  username: string
+  members: string[]
+}
+
 function App() {
   const [connected, setConnected] = useState(false)
+  const [session, setSession] = useState<SessionState | null>(null)
+  const [sessionError, setSessionError] = useState<string | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState('All')
@@ -17,28 +26,95 @@ function App() {
   useEffect(() => {
     socket.on('connect', () => setConnected(true))
     socket.on('disconnect', () => setConnected(false))
-    return () => { socket.off('connect'); socket.off('disconnect') }
+
+    socket.on('session:joined', ({ sessionId, cart, members }) => {
+      setSession(prev => ({ ...prev!, sessionId, members }))
+      setCart(cart)
+      setSessionError(null)
+    })
+
+    socket.on('session:error', ({ message }) => {
+      setSessionError(message)
+    })
+
+    socket.on('session:member_joined', ({ members }) => {
+      setSession(prev => prev ? { ...prev, members } : prev)
+    })
+
+    socket.on('session:member_left', ({ members }) => {
+      setSession(prev => prev ? { ...prev, members } : prev)
+    })
+
+    socket.on('cart:updated', ({ cart }) => {
+      setCart(cart.map((item: any) => ({
+        product: products.find(p => p.id === item.productId)!,
+        quantity: item.quantity,
+        addedBy: item.addedBy
+      })))
+    })
+
+    return () => {
+      socket.off('connect')
+      socket.off('disconnect')
+      socket.off('session:joined')
+      socket.off('session:error')
+      socket.off('session:member_joined')
+      socket.off('session:member_left')
+      socket.off('cart:updated')
+    }
   }, [])
 
-  function handleAddToCart(product: Product) {
-    setCart(prev => {
-      const existing = prev.find(i => i.product.id === product.id)
-      if (existing) {
-        return prev.map(i =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
-        )
-      }
-      return [...prev, { product, quantity: 1, addedBy: 'You' }]
-    })
+  function handleCreate(username: string) {
+    setSession({ sessionId: '', username, members: [] })
+    socket.emit('session:create', { username })
   }
 
+  function handleJoin(username: string, code: string) {
+    setSession({ sessionId: '', username, members: [] })
+    socket.emit('session:join', { sessionId: code, username })
+  }
+
+    function handleAddToCart(product: Product) {
+      socket.emit('cart:add', { sessionId: session?.sessionId ?? '', item: {
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        quantity: 1,
+        addedBy: session?.username ?? 'You'
+      } })
+      setCart(prev => {
+        const existing = prev.find(i => i.product.id === product.id)
+        if (existing) {
+          return prev.map(i =>
+            i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
+          )
+        }
+        return [...prev, { product, quantity: 1, addedBy: session?.username ?? 'You' }]
+      })
+    }
+
   function handleIncrement(id: string) {
+    const item = cart.find(i => i.product.id === id)
+    if (!item) return
+    socket.emit('cart:update', {
+      sessionId: session!.sessionId,
+      productId: id,
+      quantity: item.quantity + 1
+    })
     setCart(prev => prev.map(i =>
       i.product.id === id ? { ...i, quantity: i.quantity + 1 } : i
     ))
   }
 
   function handleDecrement(id: string) {
+    const item = cart.find(i => i.product.id === id)
+    if (!item) return
+    socket.emit('cart:update', {
+      sessionId: session!.sessionId,
+      productId: id,
+      quantity: item.quantity - 1
+    })
     setCart(prev => prev
       .map(i => i.product.id === id ? { ...i, quantity: i.quantity - 1 } : i)
       .filter(i => i.quantity > 0)
@@ -46,6 +122,11 @@ function App() {
   }
 
   function handleRemove(id: string) {
+    socket.emit('cart:update', {
+      sessionId: session!.sessionId,
+      productId: id,
+      quantity: 0
+    })
     setCart(prev => prev.filter(i => i.product.id !== id))
   }
 
@@ -55,6 +136,17 @@ function App() {
 
   const totalItems = cart.reduce((sum, i) => sum + i.quantity, 0)
 
+  // Show lobby until session is established
+  if (!session || !session.sessionId) {
+    return (
+      <Lobby
+        onCreate={handleCreate}
+        onJoin={handleJoin}
+        error={sessionError}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
 
@@ -63,9 +155,34 @@ function App() {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-gray-900">🛒 LiveCart</h1>
-            <p className="text-[11px] text-gray-400">Shop together, live</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[11px] text-gray-400">Session:</span>
+              <span className="text-[11px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                {session.sessionId}
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(session.sessionId)
+                }}
+                className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Copy
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Members */}
+            <div className="flex items-center gap-1">
+              {session.members.map((m, i) => (
+                <div
+                  key={i}
+                  title={m}
+                  className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center border-2 border-white -ml-1 first:ml-0"
+                >
+                  {m[0].toUpperCase()}
+                </div>
+              ))}
+            </div>
             <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
               connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
             }`}>
@@ -118,7 +235,6 @@ function App() {
         </div>
       </main>
 
-      {/* Cart panel */}
       <CartPanel
         isOpen={cartOpen}
         onClose={() => setCartOpen(false)}
@@ -127,7 +243,6 @@ function App() {
         onDecrement={handleDecrement}
         onRemove={handleRemove}
       />
-
     </div>
   )
 }
