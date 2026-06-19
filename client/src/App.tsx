@@ -53,6 +53,12 @@ function App() {
       })))
     })
 
+    socket.on('session:expired', () => {
+      setSession(null)
+      setCart([])
+      setSessionError('Your session expired after 1 hour.')
+    })
+    
     return () => {
       socket.off('connect')
       socket.off('disconnect')

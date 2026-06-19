@@ -8,6 +8,8 @@ dotenv.config()
 
 const app = express()
 const httpServer = createServer(app)
+const SESSION_TTL_MS = 1000 * 60 * 60 // 1 hour
+const sessions = new Map<string, Session>()
 
 const io = new Server(httpServer, {
     cors: {
@@ -39,12 +41,21 @@ interface CartItem {
 interface Session {
   cart: CartItem[]
   members: Map<string, string> // socketId -> username
+  timer: ReturnType<typeof setTimeout>
 }
-
-const sessions = new Map<string, Session>()
 
 function generateCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase()
+}
+
+function createSessionWithTTL(sessionId: string) {
+  return setTimeout(() => {
+    if (sessions.has(sessionId)) {
+      io.to(sessionId).emit('session:expired')
+      sessions.delete(sessionId)
+      console.log(`⏰ Session ${sessionId} expired`)
+    }
+  }, SESSION_TTL_MS)
 }
 
 io.on('connection', (socket) => {
@@ -55,7 +66,8 @@ io.on('connection', (socket) => {
     const sessionId = generateCode()
     sessions.set(sessionId, {
       cart: [],
-      members: new Map([[socket.id, username]])
+      members: new Map([[socket.id, username]]),
+      timer: createSessionWithTTL(sessionId.toUpperCase())
     })
     socket.join(sessionId)
     socket.emit('session:joined', { sessionId, cart: [], members: [username] })
