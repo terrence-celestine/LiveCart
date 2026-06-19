@@ -10,10 +10,13 @@ const app = express()
 const httpServer = createServer(app)
 
 const io = new Server(httpServer, {
-  cors: {
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST']
-  }
+    cors: {
+      origin: [
+        'http://localhost:5173',
+        process.env.CLIENT_URL || ''
+      ],
+      methods: ['GET', 'POST']
+    }
 })
 
 app.use(cors())

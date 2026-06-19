@@ -6,7 +6,7 @@ import ProductCard from './components/ProductCard'
 import CartPanel from './components/CartPanel'
 import Lobby from './components/Lobby'
 
-const socket = io('http://localhost:3001')
+const socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3001')
 const CATEGORIES = ['All', 'Produce', 'Dairy', 'Meat', 'Bakery', 'Pantry', 'Drinks']
 
 interface SessionState {
