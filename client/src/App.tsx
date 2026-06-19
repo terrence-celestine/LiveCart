@@ -64,6 +64,22 @@ function App() {
     }
   }, [])
 
+  const AVATAR_COLORS = [
+    'bg-indigo-100 text-indigo-700',
+    'bg-pink-100 text-pink-700',
+    'bg-amber-100 text-amber-700',
+    'bg-green-100 text-green-700',
+    'bg-sky-100 text-sky-700',
+    'bg-rose-100 text-rose-700',
+    'bg-violet-100 text-violet-700',
+    'bg-orange-100 text-orange-700',
+  ]
+  
+  function getAvatarColor(name: string): string {
+    const index = name.charCodeAt(0) % AVATAR_COLORS.length
+    return AVATAR_COLORS[index]
+  }
+  
   function handleCreate(username: string) {
     setSession({ sessionId: '', username, members: [] })
     socket.emit('session:create', { username })
@@ -173,15 +189,15 @@ function App() {
           <div className="flex items-center gap-3">
             {/* Members */}
             <div className="flex items-center gap-1">
-              {session.members.map((m, i) => (
-                <div
-                  key={i}
-                  title={m}
-                  className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center border-2 border-white -ml-1 first:ml-0"
-                >
-                  {m[0].toUpperCase()}
-                </div>
-              ))}
+            {session.members.map((m, i) => (
+              <div
+                key={i}
+                title={m}
+                className={`w-7 h-7 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-white -ml-1 first:ml-0 ${getAvatarColor(m)}`}
+              >
+                {m[0].toUpperCase()}
+              </div>
+            ))}
             </div>
             <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
               connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
